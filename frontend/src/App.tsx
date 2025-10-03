@@ -1,15 +1,17 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
 import { Filters } from './components/Filters';
 import { AssetGrid } from './components/AssetGrid';
 import { AIGenerateTab } from './components/AIGenerateTab';
-import { FavoritesTab } from './components/FavoritesTab';
+import { CollectionsTab } from './components/FavoritesTab';
 import { AssetModal } from './components/AssetModal';
+import { AddToCollectionModal } from './components/AddToCollectionModal';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { fetchAssets } from './services/assetService';
 import { getLinkedAccounts } from './services/aiService';
-import type { Asset, FilterOptions, Tab, AIProviderAccount } from './types';
+import type { Asset, FilterOptions, Tab, AIProviderAccount, Collection } from './types';
 
 const App: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('theme', 'light');
@@ -22,10 +24,48 @@ const App: React.FC = () => {
     type: 'photo',
     orientation: 'all',
   });
-  const [favorites, setFavorites] = useLocalStorage<Asset[]>('favorites', []);
+  
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [searchHistory, setSearchHistory] = useLocalStorage<string[]>('searchHistory', []);
   const [aiAccounts, setAiAccounts] = useState<AIProviderAccount[]>([]);
+  
+  // New state for collections
+  const [collections, setCollections] = useLocalStorage<Collection[]>('collections', []);
+  const [favoritedAssets, setFavoritedAssets] = useLocalStorage<{ [id: string]: Asset }>('favoritedAssets', {});
+  const [collectionModalState, setCollectionModalState] = useState<{ asset: Asset | null }>({ asset: null });
+
+  // One-time migration from old favorites system
+  useEffect(() => {
+    const oldFavoritesRaw = localStorage.getItem('favorites');
+    if (oldFavoritesRaw) {
+      try {
+        const oldFavorites: Asset[] = JSON.parse(oldFavoritesRaw);
+        if (Array.isArray(oldFavorites) && oldFavorites.length > 0 && collections.length === 0) {
+          const newAssetsMap: { [id: string]: Asset } = {};
+          const assetIds: string[] = [];
+
+          oldFavorites.forEach(asset => {
+            newAssetsMap[asset.id] = asset;
+            assetIds.push(asset.id);
+          });
+          
+          const defaultCollection: Collection = {
+            id: `collection-${Date.now()}`,
+            name: 'My Favorites',
+            assetIds: assetIds,
+          };
+
+          setCollections([defaultCollection]);
+          setFavoritedAssets(newAssetsMap);
+        }
+      } catch (e) {
+        console.error('Failed to migrate old favorites:', e);
+      } finally {
+        localStorage.removeItem('favorites'); // Clean up old key
+      }
+    }
+  }, [collections.length, setCollections, setFavoritedAssets]);
+
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -35,7 +75,6 @@ const App: React.FC = () => {
     }
   }, [theme]);
 
-  // Fetch AI accounts on load
   const refreshAiAccounts = useCallback(async () => {
     try {
       const accounts = await getLinkedAccounts();
@@ -73,18 +112,10 @@ const App: React.FC = () => {
     if (activeTab === 'search') {
       handleSearch(searchQuery, filters);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, searchQuery, activeTab]);
-
-  useEffect(() => {
-    handleSearch(searchQuery, filters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  }, [filters, searchQuery, activeTab, handleSearch]);
 
   const onSearchSubmit = (query: string) => {
     setSearchQuery(query);
-    
     setSearchHistory(prev => {
         const lowerCaseQuery = query.toLowerCase();
         const newHistory = [ query, ...prev.filter(item => item.toLowerCase() !== lowerCaseQuery) ];
@@ -97,17 +128,47 @@ const App: React.FC = () => {
     setFilters(updatedFilters);
   };
   
-  const handleFavoriteToggle = (asset: Asset) => {
-    setFavorites(prev =>
-      prev.some(fav => fav.id === asset.id)
-        ? prev.filter(fav => fav.id !== asset.id)
-        : [...prev, asset]
-    );
+  // --- Collection Management ---
+
+  const handleOpenCollectionModal = (asset: Asset) => setCollectionModalState({ asset });
+  const handleCloseCollectionModal = () => setCollectionModalState({ asset: null });
+
+  const isAssetInAnyCollection = (assetId: string) => collections.some(c => c.assetIds.includes(assetId));
+  const getCollectionsForAsset = (assetId: string) => collections.filter(c => c.assetIds.includes(assetId)).map(c => c.id);
+
+  const toggleAssetInCollection = (asset: Asset, collectionId: string) => {
+    if (!favoritedAssets[asset.id]) {
+      setFavoritedAssets(prev => ({ ...prev, [asset.id]: asset }));
+    }
+    setCollections(prev => prev.map(c => {
+      if (c.id === collectionId) {
+        const newAssetIds = c.assetIds.includes(asset.id)
+          ? c.assetIds.filter(id => id !== asset.id)
+          : [...c.assetIds, asset.id];
+        return { ...c, assetIds: newAssetIds };
+      }
+      return c;
+    }));
   };
 
-  const isFavorited = (assetId: string) => {
-    return favorites.some(fav => fav.id === assetId);
+  const createCollection = (name: string, assetToAdd?: Asset): Collection => {
+    if (assetToAdd && !favoritedAssets[assetToAdd.id]) {
+      setFavoritedAssets(prev => ({ ...prev, [assetToAdd.id]: assetToAdd }));
+    }
+    const newCollection: Collection = {
+      id: `collection-${Date.now()}`,
+      name,
+      assetIds: assetToAdd ? [assetToAdd.id] : [],
+    };
+    setCollections(prev => [...prev, newCollection]);
+    return newCollection;
   };
+
+  const deleteCollection = (collectionId: string) => {
+    setCollections(prev => prev.filter(c => c.id !== collectionId));
+  };
+  
+  // --- Render Logic ---
 
   const renderContent = () => {
     switch (activeTab) {
@@ -121,26 +182,29 @@ const App: React.FC = () => {
                 isLoading={isLoading}
                 error={error}
                 onCardClick={setSelectedAsset}
-                onFavoriteToggle={handleFavoriteToggle}
-                isFavorited={isFavorited}
+                onAddToCollection={handleOpenCollectionModal}
+                isAssetInAnyCollection={isAssetInAnyCollection}
               />
             </div>
           </div>
         );
       case 'ai':
         return <AIGenerateTab 
-                  onFavoriteToggle={handleFavoriteToggle} 
-                  isFavorited={isFavorited}
+                  onAddToCollection={handleOpenCollectionModal}
+                  isAssetInAnyCollection={isAssetInAnyCollection}
                   accounts={aiAccounts}
                   onAccountsChange={refreshAiAccounts}
                />;
       case 'favorites':
         return (
-          <FavoritesTab
-            favorites={favorites}
-            onCardClick={setSelectedAsset}
-            onFavoriteToggle={handleFavoriteToggle}
-            isFavorited={isFavorited}
+          <CollectionsTab
+            collections={collections}
+            assets={favoritedAssets}
+            onAssetClick={setSelectedAsset}
+            onAddToCollection={handleOpenCollectionModal}
+            isAssetInAnyCollection={isAssetInAnyCollection}
+            onCreateCollection={createCollection}
+            onDeleteCollection={deleteCollection}
           />
         );
       default:
@@ -172,8 +236,18 @@ const App: React.FC = () => {
         <AssetModal
           asset={selectedAsset}
           onClose={() => setSelectedAsset(null)}
-          onFavoriteToggle={handleFavoriteToggle}
-          isFavorited={isFavorited(selectedAsset.id)}
+          onAddToCollection={handleOpenCollectionModal}
+          isAssetInAnyCollection={isAssetInAnyCollection(selectedAsset.id)}
+        />
+      )}
+      {collectionModalState.asset && (
+        <AddToCollectionModal
+          asset={collectionModalState.asset}
+          onClose={handleCloseCollectionModal}
+          collections={collections}
+          assetCollectionIds={getCollectionsForAsset(collectionModalState.asset.id)}
+          onToggleAssetInCollection={toggleAssetInCollection}
+          onCreateCollection={createCollection}
         />
       )}
     </div>

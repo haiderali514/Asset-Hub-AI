@@ -4,6 +4,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { GoogleGenAI } = require('@google/genai');
+const archiver = require('archiver');
+const axios = require('axios');
+const { URL } = require('url');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -105,7 +108,7 @@ app.post('/api/ai-generate', async (req, res) => {
 
     console.log(`Generating image with ${provider.name} for prompt: "${prompt}"`);
 
-    if (provider.name === 'Gemini AI') {
+    if (provider.id === 'gemini-default') {
         const API_KEY = process.env.API_KEY;
         if (!API_KEY) {
             return res.status(500).json({ message: 'Gemini API key is not configured on the server.' });
@@ -155,13 +158,62 @@ app.post('/api/ai-generate', async (req, res) => {
     }
 });
 
+// POST /api/download-favorites
+app.post('/api/download-favorites', async (req, res) => {
+    const { assets } = req.body;
+
+    if (!assets || !Array.isArray(assets) || assets.length === 0) {
+        return res.status(400).json({ message: 'No assets provided for download.' });
+    }
+
+    try {
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', 'attachment; filename=assethub-favorites.zip');
+
+        const archive = archiver('zip', { zlib: { level: 9 } });
+        archive.on('warning', (err) => { if (err.code !== 'ENOENT') throw err; });
+        archive.on('error', (err) => { throw err; });
+        archive.pipe(res);
+
+        for (const asset of assets) {
+            try {
+                if (asset.largeImageURL.startsWith('data:')) {
+                    const [header, base64Data] = asset.largeImageURL.split(',');
+                    const mimeType = header.match(/:(.*?);/)[1];
+                    const extension = mimeType.split('/')[1] || 'jpg';
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const filename = `${asset.id}-ai-generated.${extension}`;
+                    archive.append(buffer, { name: filename });
+                } else {
+                    const response = await axios.get(asset.largeImageURL, { responseType: 'stream' });
+                    const url = new URL(asset.largeImageURL);
+                    let filename = path.basename(url.pathname);
+                     if (!filename || !path.extname(filename)) {
+                        const ext = response.headers['content-type'] ? `.${response.headers['content-type'].split('/')[1]}` : '.jpg';
+                        filename = `${asset.id}${ext}`;
+                    }
+                    archive.append(response.data, { name: filename });
+                }
+            } catch (error) {
+                console.error(`Failed to process asset ${asset.id}:`, error.message);
+                // Optionally append an error file to the zip
+                archive.append(`Failed to download: ${asset.largeImageURL}\nError: ${error.message}`, { name: `${asset.id}-error.txt` });
+            }
+        }
+
+        await archive.finalize();
+    } catch (error) {
+        console.error('Error creating zip archive:', error);
+        if (!res.headersSent) {
+             res.status(500).json({ message: 'Failed to create zip archive.' });
+        }
+    }
+});
+
 
 // --- Static File Serving ---
-// Serve the static files from the React app
 const frontendPath = path.join(__dirname, '..', 'frontend');
 app.use(express.static(frontendPath));
-app.use('/src', express.static(path.join(frontendPath, 'src')));
-
 
 // Handles any requests that don't match the ones above
 app.get('*', (req, res) => {

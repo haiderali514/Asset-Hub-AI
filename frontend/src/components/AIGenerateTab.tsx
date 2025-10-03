@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { generateImage } from '../services/aiService';
 import { AssetGrid } from './AssetGrid';
@@ -6,8 +7,8 @@ import type { Asset, AspectRatio, AIProviderAccount } from '../types';
 import { Icon } from './Icon';
 
 interface AIGenerateTabProps {
-  onFavoriteToggle: (asset: Asset) => void;
-  isFavorited: (assetId: string) => boolean;
+  onAddToCollection: (asset: Asset) => void;
+  isAssetInAnyCollection: (assetId: string) => boolean;
   accounts: AIProviderAccount[];
   onAccountsChange: () => void;
 }
@@ -18,7 +19,7 @@ const aspectRatios: { value: AspectRatio; label: string }[] = [
     { value: '9:16', label: 'Portrait' },
 ];
 
-export const AIGenerateTab: React.FC<AIGenerateTabProps> = ({ onFavoriteToggle, isFavorited, accounts, onAccountsChange }) => {
+export const AIGenerateTab: React.FC<AIGenerateTabProps> = ({ onAddToCollection, isAssetInAnyCollection, accounts, onAccountsChange }) => {
   const [prompt, setPrompt] = useState('A synthwave sunset over a futuristic city');
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
@@ -121,7 +122,7 @@ export const AIGenerateTab: React.FC<AIGenerateTabProps> = ({ onFavoriteToggle, 
         <AssetGrid
           assets={generatedAssets} isLoading={isGenerating} error={error}
           onCardClick={() => {}} // No modal for AI images for now
-          onFavoriteToggle={onFavoriteToggle} isFavorited={isFavorited}
+          onAddToCollection={onAddToCollection} isAssetInAnyCollection={isAssetInAnyCollection}
         />
       </div>
 

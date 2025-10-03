@@ -1,74 +1,72 @@
-
 import type { Asset, AspectRatio, AIProviderAccount } from "../types";
 
-const API_BASE_URL = '/api';
+// --- IN-MEMORY DATABASE ---
+let linkedAccounts: AIProviderAccount[] = [
+    { id: 'gemini-default', name: 'Gemini AI', apiKey: null, isDefault: true, description: 'Google\'s powerful AI model.' },
+    { id: 'dalle-mock', name: 'DALL-E (Mock)', apiKey: 'mock-key', isDefault: false, description: 'A mock provider simulating DALL-E.' },
+    { id: 'stable-diffusion-mock', name: 'Stable Diffusion (Mock)', apiKey: 'mock-key', isDefault: false, description: 'A mock provider simulating Stable Diffusion.' },
+];
+
 
 export const generateImage = async (prompt: string, aspectRatio: AspectRatio, providerId: string): Promise<Asset[]> => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/ai-generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ prompt, aspectRatio, providerId }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || "Failed to generate image.");
-    }
-    
-    return data;
-  } catch (error) {
-    console.error("Error generating image via backend:", error);
-    throw error;
-  }
+  const provider = linkedAccounts.find(p => p.id === providerId);
+  console.log(`[MOCK] Generating image with ${provider?.name || 'Unknown Provider'} for prompt: "${prompt}"`);
+  
+  return new Promise(resolve => {
+    setTimeout(() => {
+        const mockAsset: Asset = {
+            id: `ai-mock-${Date.now()}`,
+            type: 'photo',
+            previewURL: `https://source.unsplash.com/random/400x300?${encodeURIComponent(prompt)}`,
+            largeImageURL: `https://source.unsplash.com/random/800x600?${encodeURIComponent(prompt)}`,
+            author: provider?.name || 'Mock AI',
+            source: 'AI',
+            license: 'Generated Content (Mock)',
+            tags: [prompt.substring(0, 50)],
+            downloadURL: `https://source.unsplash.com/random/800x600?${encodeURIComponent(prompt)}`,
+        };
+        resolve([mockAsset]);
+    }, 1500);
+  });
 };
 
 
 export const getLinkedAccounts = async (): Promise<AIProviderAccount[]> => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/linked-accounts`);
-        if (!response.ok) {
-            throw new Error('Failed to fetch AI accounts.');
-        }
-        return await response.json();
-    } catch (error) {
-        console.error("Error fetching linked accounts:", error);
-        throw error;
-    }
+    console.log('[MOCK] Getting linked accounts');
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve([...linkedAccounts]);
+        }, 300);
+    });
 }
 
 export const addAiProvider = async (accountData: { name: string; apiKey?: string; description?: string }): Promise<AIProviderAccount> => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/add-ai-provider`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(accountData),
-        });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to add provider.');
-        }
-        return await response.json();
-    } catch (error) {
-        console.error("Error adding AI provider:", error);
-        throw error;
-    }
+    console.log('[MOCK] Adding AI provider:', accountData);
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            if (!accountData.name.trim()) {
+                reject(new Error("Provider name is required."));
+                return;
+            }
+            const newAccount: AIProviderAccount = {
+                id: `${accountData.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+                name: accountData.name,
+                apiKey: accountData.apiKey || null,
+                description: accountData.description,
+                isDefault: false,
+            };
+            linkedAccounts.push(newAccount);
+            resolve(newAccount);
+        }, 500);
+    });
 }
 
 export const removeAiProvider = async (id: string): Promise<void> => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/remove-linked-account/${id}`, {
-            method: 'DELETE',
-        });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to remove provider.');
-        }
-    } catch (error) {
-        console.error("Error removing AI provider:", error);
-        throw error;
-    }
+    console.log('[MOCK] Removing AI provider:', id);
+    return new Promise(resolve => {
+        setTimeout(() => {
+            linkedAccounts = linkedAccounts.filter(acc => acc.id !== id);
+            resolve();
+        }, 500);
+    });
 }

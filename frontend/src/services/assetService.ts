@@ -29,11 +29,12 @@ export const fetchSearchSuggestions = async (query: string): Promise<string[]> =
   try {
     const response = await fetch(`${API_BASE_URL}/suggestions?${params.toString()}`);
     if (!response.ok) {
-        throw new Error(`API error for suggestions: ${response.statusText}`);
+        console.error(`API error for suggestions: ${response.statusText}`);
+        return [];
     }
     return await response.json();
   } catch (error) {
     console.error('Failed to fetch suggestions from backend:', error);
-    throw error;
+    return [];
   }
 };

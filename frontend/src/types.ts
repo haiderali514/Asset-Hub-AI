@@ -1,6 +1,6 @@
 
 export type AssetSource = 'Pixabay' | 'Pexels' | 'Unsplash' | 'AI';
-export type Tab = 'search' | 'ai' | 'favorites';
+export type Tab = 'search' | 'ai' | 'favorites' | 'profile';
 export type AspectRatio = '1:1' | '16:9' | '9:16';
 
 export interface Asset {
@@ -32,4 +32,10 @@ export interface Collection {
   id: string;
   name: string;
   assetIds: string[];
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
 }

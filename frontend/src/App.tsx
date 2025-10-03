@@ -1,17 +1,18 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
 import { Filters } from './components/Filters';
 import { AssetGrid } from './components/AssetGrid';
 import { AIGenerateTab } from './components/AIGenerateTab';
-import { CollectionsTab } from './components/FavoritesTab';
+import { CollectionsTab } from './components/CollectionsTab';
+import { ProfileTab } from './components/ProfileTab';
 import { AssetModal } from './components/AssetModal';
 import { AddToCollectionModal } from './components/AddToCollectionModal';
+import { LoginModal } from './components/LoginModal';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { fetchAssets } from './services/assetService';
 import { getLinkedAccounts } from './services/aiService';
-import type { Asset, FilterOptions, Tab, AIProviderAccount, Collection } from './types';
+import type { Asset, FilterOptions, Tab, AIProviderAccount, Collection, User } from './types';
 
 const App: React.FC = () => {
   const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('theme', 'light');
@@ -25,10 +26,18 @@ const App: React.FC = () => {
     orientation: 'all',
   });
   
+  // Infinite scroll state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [searchHistory, setSearchHistory] = useLocalStorage<string[]>('searchHistory', []);
   const [aiAccounts, setAiAccounts] = useState<AIProviderAccount[]>([]);
   
+  // Account state
+  const [user, setUser] = useLocalStorage<User | null>('user', null);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
   // New state for collections
   const [collections, setCollections] = useLocalStorage<Collection[]>('collections', []);
   const [favoritedAssets, setFavoritedAssets] = useLocalStorage<{ [id: string]: Asset }>('favoritedAssets', {});
@@ -91,15 +100,34 @@ const App: React.FC = () => {
   const toggleTheme = () => {
     setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
   };
+  
+  // --- Auth Handlers ---
+  const handleLogin = () => {
+      setUser({ id: 'demo-user', name: 'Demo User', email: 'demo@assethub.ai' });
+      setIsLoginModalOpen(false);
+  };
+  const handleLogout = () => {
+      setUser(null);
+      setActiveTab('search'); // Redirect to search page after logout
+  };
+  const handleUpdateUser = (updatedUser: Partial<User>) => {
+      if (user) {
+          setUser({ ...user, ...updatedUser });
+      }
+  };
 
-  const handleSearch = useCallback(async (query: string, searchFilters: FilterOptions) => {
+
+  // --- Data Fetching & Infinite Scroll ---
+
+  const loadAssets = useCallback(async (query: string, searchFilters: FilterOptions, pageNum: number) => {
     if (!query) return;
     setIsLoading(true);
     setError(null);
-    setAssets([]);
+    
     try {
-      const fetchedAssets = await fetchAssets(query, searchFilters);
-      setAssets(fetchedAssets);
+      const { assets: fetchedAssets, hasMore: newHasMore } = await fetchAssets(query, searchFilters, pageNum);
+      setAssets(prev => pageNum === 1 ? fetchedAssets : [...prev, ...fetchedAssets]);
+      setHasMore(newHasMore);
     } catch (err) {
       setError('Failed to fetch assets. Please check your network and try again.');
       console.error(err);
@@ -107,12 +135,37 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   }, []);
-
+  
+  // Effect for initial load and subsequent searches/filter changes
   useEffect(() => {
     if (activeTab === 'search') {
-      handleSearch(searchQuery, filters);
+      setAssets([]);
+      setPage(1);
+      setHasMore(true);
+      loadAssets(searchQuery, filters, 1);
     }
-  }, [filters, searchQuery, activeTab, handleSearch]);
+  }, [searchQuery, filters, activeTab, loadAssets]);
+  
+  // Effect for loading more assets on page change
+  useEffect(() => {
+    if (page > 1 && activeTab === 'search') {
+      loadAssets(searchQuery, filters, page);
+    }
+  }, [page, activeTab, searchQuery, filters, loadAssets]);
+
+  // Effect for scroll detection
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerHeight + document.documentElement.scrollTop < document.documentElement.offsetHeight - 500 || isLoading || !hasMore) {
+        return;
+      }
+      setPage(prevPage => prevPage + 1);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isLoading, hasMore]);
+
 
   const onSearchSubmit = (query: string) => {
     setSearchQuery(query);
@@ -174,19 +227,21 @@ const App: React.FC = () => {
     switch (activeTab) {
       case 'search':
         return (
-          <div className="flex flex-col md:flex-row gap-8">
-            <Filters filters={filters} onFilterChange={onFilterChange} />
-            <div className="flex-grow">
-              <AssetGrid
-                assets={assets}
-                isLoading={isLoading}
-                error={error}
-                onCardClick={setSelectedAsset}
-                onAddToCollection={handleOpenCollectionModal}
-                isAssetInAnyCollection={isAssetInAnyCollection}
-              />
-            </div>
-          </div>
+            <>
+                <AssetGrid
+                  assets={assets}
+                  isLoading={isLoading}
+                  error={error}
+                  onCardClick={setSelectedAsset}
+                  onAddToCollection={handleOpenCollectionModal}
+                  isAssetInAnyCollection={isAssetInAnyCollection}
+                />
+                {!isLoading && !hasMore && assets.length > 0 && (
+                    <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+                        <p>You've reached the end of the results.</p>
+                    </div>
+                )}
+            </>
         );
       case 'ai':
         return <AIGenerateTab 
@@ -207,6 +262,28 @@ const App: React.FC = () => {
             onDeleteCollection={deleteCollection}
           />
         );
+      case 'profile':
+        if (!user) {
+            setActiveTab('search');
+            return null;
+        }
+        return (
+            <ProfileTab 
+                user={user}
+                onUpdateUser={handleUpdateUser}
+                collectionsTab={
+                    <CollectionsTab
+                        collections={collections}
+                        assets={favoritedAssets}
+                        onAssetClick={setSelectedAsset}
+                        onAddToCollection={handleOpenCollectionModal}
+                        isAssetInAnyCollection={isAssetInAnyCollection}
+                        onCreateCollection={createCollection}
+                        onDeleteCollection={deleteCollection}
+                    />
+                }
+            />
+        );
       default:
         return null;
     }
@@ -219,16 +296,24 @@ const App: React.FC = () => {
         setActiveTab={setActiveTab}
         theme={theme}
         toggleTheme={toggleTheme}
+        user={user}
+        onLoginClick={() => setIsLoginModalOpen(true)}
+        onLogout={handleLogout}
       />
       <main className="container mx-auto p-4 md:p-8">
         {activeTab === 'search' && (
-          <div className="mb-8">
-            <SearchBar 
-              onSearch={onSearchSubmit} 
-              initialQuery={searchQuery} 
-              searchHistory={searchHistory}
-            />
-          </div>
+          <>
+            <div className="mb-8">
+              <SearchBar 
+                onSearch={onSearchSubmit} 
+                initialQuery={searchQuery} 
+                searchHistory={searchHistory}
+              />
+            </div>
+            <div className="mb-8">
+              <Filters filters={filters} onFilterChange={onFilterChange} />
+            </div>
+          </>
         )}
         {renderContent()}
       </main>
@@ -248,6 +333,12 @@ const App: React.FC = () => {
           assetCollectionIds={getCollectionsForAsset(collectionModalState.asset.id)}
           onToggleAssetInCollection={toggleAssetInCollection}
           onCreateCollection={createCollection}
+        />
+      )}
+      {isLoginModalOpen && (
+        <LoginModal 
+            onClose={() => setIsLoginModalOpen(false)}
+            onLogin={handleLogin}
         />
       )}
     </div>

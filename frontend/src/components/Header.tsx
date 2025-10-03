@@ -1,13 +1,17 @@
 
 import React from 'react';
-import type { Tab } from '../types';
+import type { Tab, User } from '../types';
 import { Icon } from './Icon';
+import { ProfileDropdown } from './ProfileDropdown';
 
 interface HeaderProps {
   activeTab: Tab;
   setActiveTab: (tab: Tab) => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  user: User | null;
+  onLoginClick: () => void;
+  onLogout: () => void;
 }
 
 const NavButton: React.FC<{
@@ -29,7 +33,7 @@ const NavButton: React.FC<{
   </button>
 );
 
-export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, theme, toggleTheme }) => {
+export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, theme, toggleTheme, user, onLoginClick, onLogout }) => {
   return (
     <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm shadow-sm">
       <div className="container mx-auto px-4 md:px-8">
@@ -45,13 +49,24 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, setActiveTab, theme, 
             <NavButton label="Collections" icon="heart" isActive={activeTab === 'favorites'} onClick={() => setActiveTab('favorites')} />
           </nav>
           
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Toggle theme"
-          >
-            {theme === 'light' ? <Icon name="moon" className="w-6 h-6" /> : <Icon name="sun" className="w-6 h-6" />}
-          </button>
+          <div className="flex items-center">
+            {user ? (
+                <ProfileDropdown 
+                    user={user}
+                    theme={theme}
+                    toggleTheme={toggleTheme}
+                    onLogout={onLogout}
+                    onProfileClick={() => setActiveTab('profile')}
+                />
+            ) : (
+                <button
+                    onClick={onLoginClick}
+                    className="px-4 py-2 text-sm font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+                >
+                    Sign In
+                </button>
+            )}
+          </div>
         </div>
       </div>
     </header>

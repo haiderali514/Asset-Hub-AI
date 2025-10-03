@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { AssetCard } from './AssetCard';
 import type { Asset } from '../types';
@@ -32,7 +31,8 @@ export const AssetGrid: React.FC<AssetGridProps> = ({ assets, isLoading, error, 
     );
   }
 
-  if (isLoading) {
+  // Initial load skeleton
+  if (assets.length === 0 && isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {Array.from({ length: 12 }).map((_, i) => (
@@ -42,7 +42,8 @@ export const AssetGrid: React.FC<AssetGridProps> = ({ assets, isLoading, error, 
     );
   }
 
-  if (!assets.length && !isLoading) {
+  // Empty state after loading
+  if (assets.length === 0 && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center text-gray-500 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
         <Icon name="empty" className="w-16 h-16 mb-4" />
@@ -62,6 +63,10 @@ export const AssetGrid: React.FC<AssetGridProps> = ({ assets, isLoading, error, 
           onAddToCollection={onAddToCollection}
           isInCollections={isAssetInAnyCollection(asset.id)}
         />
+      ))}
+      {/* Appended skeletons for infinite scroll loading */}
+      {isLoading && Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonCard key={`loading-${i}`} />
       ))}
     </div>
   );

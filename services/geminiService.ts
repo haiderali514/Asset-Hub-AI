@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import type { Asset } from "../types";
+import type { Asset, AspectRatio } from "../types";
 
 const API_KEY = process.env.API_KEY;
 
@@ -10,7 +10,7 @@ if (!ai) {
   console.warn("Gemini API key is missing. AI generation will not work.");
 }
 
-export const generateImage = async (prompt: string): Promise<Asset[]> => {
+export const generateImage = async (prompt: string, aspectRatio: AspectRatio): Promise<Asset[]> => {
   if (!ai) {
     throw new Error("Gemini API key is missing. AI generation functionality is disabled.");
   }
@@ -22,7 +22,7 @@ export const generateImage = async (prompt: string): Promise<Asset[]> => {
         config: {
           numberOfImages: 1,
           outputMimeType: 'image/jpeg',
-          aspectRatio: '1:1',
+          aspectRatio: aspectRatio,
         },
     });
 

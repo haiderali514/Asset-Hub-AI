@@ -1,6 +1,7 @@
 
 export type AssetSource = 'Pixabay' | 'Pexels' | 'Unsplash' | 'AI';
 export type Tab = 'search' | 'ai' | 'favorites';
+export type AspectRatio = '1:1' | '16:9' | '9:16';
 
 export interface Asset {
   id: string;

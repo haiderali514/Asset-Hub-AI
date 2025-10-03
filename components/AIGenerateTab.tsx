@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { generateImage } from '../services/geminiService';
 import { AssetGrid } from './AssetGrid';
-import type { Asset } from '../types';
+import type { Asset, AspectRatio } from '../types';
 import { Icon } from './Icon';
 
 interface AIGenerateTabProps {
@@ -10,8 +10,15 @@ interface AIGenerateTabProps {
   isFavorited: (assetId: string) => boolean;
 }
 
+const aspectRatios: { value: AspectRatio; label: string }[] = [
+    { value: '1:1', label: 'Square' },
+    { value: '16:9', label: 'Landscape' },
+    { value: '9:16', label: 'Portrait' },
+];
+
 export const AIGenerateTab: React.FC<AIGenerateTabProps> = ({ onFavoriteToggle, isFavorited }) => {
   const [prompt, setPrompt] = useState('A synthwave sunset over a futuristic city');
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1');
   const [generatedAssets, setGeneratedAssets] = useState<Asset[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +29,7 @@ export const AIGenerateTab: React.FC<AIGenerateTabProps> = ({ onFavoriteToggle, 
     setError(null);
     setGeneratedAssets([]);
     try {
-      const assets = await generateImage(prompt);
+      const assets = await generateImage(prompt, aspectRatio);
       setGeneratedAssets(assets);
     } catch (err) {
       setError('Failed to generate image. Please try again later.');
@@ -38,6 +45,26 @@ export const AIGenerateTab: React.FC<AIGenerateTabProps> = ({ onFavoriteToggle, 
         <Icon name="sparkles" className="w-12 h-12 mx-auto text-primary-500 mb-4"/>
         <h2 className="text-2xl font-bold mb-2">AI Image Generation</h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">Describe the image you want to create. Be as descriptive as you can!</p>
+        
+        <div className="mb-6">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Aspect Ratio</p>
+            <div className="flex justify-center gap-2">
+                {aspectRatios.map(({ value, label }) => (
+                    <button
+                        key={value}
+                        onClick={() => setAspectRatio(value)}
+                        className={`px-4 py-2 text-sm font-medium rounded-full transition-colors duration-200 ${
+                            aspectRatio === value
+                                ? 'bg-primary-500 text-white shadow'
+                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'
+                        }`}
+                    >
+                        {label} ({value})
+                    </button>
+                ))}
+            </div>
+        </div>
+        
         <div className="flex flex-col sm:flex-row gap-4">
           <textarea
             value={prompt}

@@ -13,10 +13,6 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// --- API Router Setup ---
-const apiRouter = express.Router();
-app.use('/api', apiRouter);
-
 // --- MOCK DATA ---
 const mockAssets = [
     { id: '3139371', type: 'photo', previewURL: 'https://cdn.pixabay.com/photo/2018/02/08/22/27/fantasy-3139371_150.jpg', largeImageURL: 'https://cdn.pixabay.com/photo/2018/02/08/22/27/fantasy-3139371_1280.jpg', author: 'KELLEPICS', source: 'Pixabay', license: 'Pixabay License', tags: ['fantasy', 'city', 'futuristic', 'synthwave', 'neon'], downloadURL: 'https://pixabay.com/photos/fantasy-3139371/', },
@@ -39,7 +35,7 @@ let linkedAccounts = [
 // --- API ROUTES ---
 
 // GET /api/search
-apiRouter.get('/search', (req, res) => {
+app.get('/api/search', (req, res) => {
     const { q, type, orientation } = req.query;
     console.log(`Searching for: ${q}`);
 
@@ -54,7 +50,7 @@ apiRouter.get('/search', (req, res) => {
 });
 
 // GET /api/suggestions
-apiRouter.get('/suggestions', (req, res) => {
+app.get('/api/suggestions', (req, res) => {
     const { q } = req.query;
     if (!q) {
         return res.json([]);
@@ -64,12 +60,12 @@ apiRouter.get('/suggestions', (req, res) => {
 });
 
 // GET /api/linked-accounts
-apiRouter.get('/linked-accounts', (req, res) => {
+app.get('/api/linked-accounts', (req, res) => {
     res.json(linkedAccounts);
 });
 
 // POST /api/add-ai-provider
-apiRouter.post('/add-ai-provider', (req, res) => {
+app.post('/api/add-ai-provider', (req, res) => {
     const { name, apiKey, description } = req.body;
     if (!name) {
         return res.status(400).json({ message: 'Provider name is required.' });
@@ -86,7 +82,7 @@ apiRouter.post('/add-ai-provider', (req, res) => {
 });
 
 // DELETE /api/remove-linked-account/:id
-apiRouter.delete('/remove-linked-account/:id', (req, res) => {
+app.delete('/api/remove-linked-account/:id', (req, res) => {
     const { id } = req.params;
     const initialLength = linkedAccounts.length;
     linkedAccounts = linkedAccounts.filter(acc => acc.id !== id);
@@ -99,7 +95,7 @@ apiRouter.delete('/remove-linked-account/:id', (req, res) => {
 
 
 // POST /api/ai-generate
-apiRouter.post('/ai-generate', async (req, res) => {
+app.post('/api/ai-generate', async (req, res) => {
     const { prompt, aspectRatio, providerId } = req.body;
     const provider = linkedAccounts.find(p => p.id === providerId);
 

@@ -1,0 +1,5 @@
+{
+  "name": "AssetHub AI",
+  "description": "An application for creators to search for free digital assets from various sources and generate new assets using AI. Users can search, filter, and save their favorite assets to personal collections.",
+  "requestFramePermissions": []
+}
